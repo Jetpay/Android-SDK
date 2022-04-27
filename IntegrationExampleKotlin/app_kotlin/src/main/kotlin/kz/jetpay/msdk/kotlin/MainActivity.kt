@@ -6,37 +6,51 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.wallet.PaymentDataRequest
 import kz.jetpay.msdk.*
 import kz.jetpay.msdk.threeDSecure.*
+import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
     private val PAY_ACTIVITY_REQUEST = 888
-    private val SECRET = "test_integration_jetpay_salt"
+    private val SECRET = "your_secret"
     private val PROJECT_ID = 123
+    private val RANDOM_PAYMENT_ID = "test_integration_jetpay_${getRandomNumber()}"
+    private lateinit var paymentInfo: JetpayHostsPaymentInfo
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Create payment info with product information
-        val paymentInfo = getPaymentInfoOnlyRequiredParams() // getPaymentInfoAllParams
+        //STEP 1: Create payment info object with product information
+        paymentInfo = getPaymentInfoOnlyRequiredParams() // getPaymentInfoAllParams
 
-        // enabled google pay
-        configureGooglePayParams(paymentInfo)
+        //STEP 2: Signature should be generated on your server and delivered to your app
+        val signature = SignatureGenerator.generateSignature(getParamsForSigning() ?: "", SECRET)
 
-        // Signature should be generated on your server and delivered to your app
-        val signature = SignatureGenerator.generateSignature(paymentInfo.paramsForSignature, SECRET)
+        //STEP 3: Sign payment info object
+        setSignature(signature)
 
-        // Sign payment info
-        paymentInfo.signature = signature
+        //STEP 4: Create the intent of SDK
+        val SDKIntent = JetpayHostsSDK.buildIntent(this, paymentInfo)
 
-        // Present Checkout UI
-        startActivityForResult(
-            JetpayHostsSDK.buildIntent(
-                this,
-                paymentInfo
-            ),
-            PAY_ACTIVITY_REQUEST
-        )
+        //STEP 5: Present Checkout UI
+        startActivityForResult(SDKIntent, PAY_ACTIVITY_REQUEST)
+
+        //Additional STEP (if necessary): add additional fields
+        setupAdditionalFields()
+        //Or you can do this like that:
+        //addJetpayHostsScreenDisplayModes()
+
+        //Additional STEP (if necessary): add recurrent info
+        setupRecurrentInfo()
+
+        //Additional STEP (if necessary): add 3DS
+        setupThreeDSecureParams()
+
+        //Additional STEP (if necessary): add google pay
+        setupGooglePay()
+
+        //Additional STEP (if necessary): custom behaviour of SDK
+        setupScreenDisplayModes()
     }
 
     // Handle SDK result
@@ -51,24 +65,29 @@ class MainActivity : AppCompatActivity() {
             }
             val error = data?.getStringExtra(JetpayHostsSDK.DATA_INTENT_EXTRA_ERROR)
             val token = data?.getStringExtra(JetpayHostsSDK.DATA_INTENT_EXTRA_TOKEN)
-            val sessionError = data?.getStringExtra(JetpayHostsSDK.DATA_INTENT_SESSION_INTERRUPTED)
         }
+    }
+
+    //Only for testing
+    private fun getRandomNumber(): String {
+        val randomNumber = Random().nextInt(9999) + 1000
+        return randomNumber.toString()
     }
 
     // Payment Info
     private fun getPaymentInfoOnlyRequiredParams(): JetpayHostsPaymentInfo {
         return JetpayHostsPaymentInfo(
             PROJECT_ID, // project ID that is assigned to you
-            "test_integration_jetpay_id", // payment ID to identify payment in your system
+            RANDOM_PAYMENT_ID, // payment ID to identify payment in your system
             100, // 1.00
             "USD"
         )
     }
 
-    private fun getPaymentInfoAllParams(): JetpayHostsPaymentInfo {
+    internal fun getPaymentInfoAllParams(): JetpayHostsPaymentInfo {
         return JetpayHostsPaymentInfo(
             PROJECT_ID, // project ID that is assigned to you
-            "test_integration_jetpay_id", // payment ID to identify payment in your system
+            RANDOM_PAYMENT_ID, // payment ID to identify payment in your system
             100, // 1.00
             "USD",
             "T-shirt with dog print",
@@ -77,42 +96,154 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    // Additional
-    internal fun setDMSPayment(paymentInfo: JetpayHostsPaymentInfo) {
-        paymentInfo.action = JetpayHostsPaymentInfo.ActionType.Auth
+    //Get params for signing payment (do it only after create paymentInfo object)
+    private fun getParamsForSigning(): String? {
+        return paymentInfo.paramsForSignature
     }
 
-    internal fun setActionTokenize(paymentInfo: JetpayHostsPaymentInfo) {
-        paymentInfo.action = JetpayHostsPaymentInfo.ActionType.Tokenize
+    //Getters for all params payment info
+    private fun getSignature(): String? {
+        return paymentInfo.signature
     }
 
-    internal fun setActionVerify(paymentInfo: JetpayHostsPaymentInfo) {
-        paymentInfo.action = JetpayHostsPaymentInfo.ActionType.Verify
+    private fun getProjectId(): Int {
+        return paymentInfo.projectId
     }
 
-    internal fun getAction(paymentInfo: JetpayHostsPaymentInfo): JetpayHostsPaymentInfo.ActionType {
+    private fun getPaymentId(): String? {
+        return paymentInfo.paymentId
+    }
+
+    private fun getPaymentAmount(): Long {
+        return paymentInfo.paymentAmount
+    }
+
+    private fun getPaymentCurrency(): String? {
+        return paymentInfo.paymentCurrency
+    }
+
+    private fun getPaymentDescription(): String? {
+        return paymentInfo.paymentDescription
+    }
+
+    private fun getCustomerId(): String? {
+        return paymentInfo.customerId
+    }
+
+    private fun getRegionCode(): String? {
+        return paymentInfo.regionCode
+    }
+
+    private fun getLanguageCode(): String? { //Default value is mobile device language
+        return paymentInfo.languageCode
+    }
+
+    private fun getToken(): String? {
+        return paymentInfo.token
+    }
+
+    private fun getReceiptData(): String? {
+        return paymentInfo.receiptData
+    }
+
+    private fun getBankId(): Int? {
+        return paymentInfo.bankId
+    }
+
+    private fun getHideSavedWallets(): Boolean? {
+        return paymentInfo.hideSavedWallets
+    }
+
+    private fun getForcePaymentMethod(): String? {
+        return paymentInfo.forcePaymentMethod
+    }
+
+    private fun getAction(): JetpayHostsPaymentInfo.ActionType { //Default payment action type is ActionType.Sale
         return paymentInfo.action
     }
 
-    internal fun setToken(paymentInfo: JetpayHostsPaymentInfo) {
+    //Setters for payment info
+    private fun setSignature(signature: String) {
+        paymentInfo.signature = signature
+    }
+    //Set the custom language code (see the ISO 639-1 codes list)
+    private fun setLanguageCode() {
+        paymentInfo.languageCode = "language code"
+    }
+
+    private fun setToken() {
         paymentInfo.token = "token"
     }
 
-    internal fun setReceiptData(paymentInfo: JetpayHostsPaymentInfo) {
+    private fun setReceiptData() {
         paymentInfo.receiptData = "receipt data"
     }
 
     // if you want to hide the saved cards, pass the value - true
-    internal fun setHideSavedWallets(paymentInfo: JetpayHostsPaymentInfo) {
+    private fun setHideSavedWallets() {
         paymentInfo.hideSavedWallets = false
     }
 
     // For forced opening of the payment method, pass its code. Example: qiwi, card ...
-    internal fun setForcePaymentMethod(paymentInfo: JetpayHostsPaymentInfo) {
+    private fun setForcePaymentMethod() {
         paymentInfo.forcePaymentMethod = "card"
     }
 
-    internal fun setRecurrent(paymentInfo: JetpayHostsPaymentInfo) {
+    private fun setBankId() {
+        paymentInfo.bankId = 123
+    }
+
+
+    //Additional getters and setters
+    //RecurrentInfo
+    private fun getJetpayHostsRecurrentInfo(): JetpayHostsRecurrentInfo? {
+        return paymentInfo.jetpayHostsRecurrentInfo
+    }
+    private fun setRecurrentInfo(recurrentInfo: JetpayHostsRecurrentInfo) {
+        paymentInfo.setRecurrent(recurrentInfo)
+    }
+    //Screen Display Mode
+    private fun getScreenDisplayModes(): List<JetpayHostsScreenDisplayMode>? {
+        return paymentInfo.jetpayHostsScreenDisplayModes
+    }
+    private fun setJetpayHostsScreenDisplayModes(jetpayHostsScreenDisplayModes: List<JetpayHostsScreenDisplayMode>) {
+        paymentInfo.setJetpayHostsScreenDisplayMode(jetpayHostsScreenDisplayModes)
+    }
+    //Alternative variant of setter
+    private fun addJetpayHostsScreenDisplayModes() {
+        paymentInfo
+            .addJetpayHostsScreenDisplayMode("hide_decline_final_page")
+            .addJetpayHostsScreenDisplayMode("hide_success_final_page")
+    }
+    //AdditionalFields
+    private fun getJetpayHostsAdditionalFields(): Array<JetpayHostsAdditionalField>? {
+        return paymentInfo.jetpayHostsAdditionalFields
+    }
+    private fun setJetpayHostsAdditionalFields(jetpayHostsAdditionalFields: Array<JetpayHostsAdditionalField>?) {
+        paymentInfo.jetpayHostsAdditionalFields = jetpayHostsAdditionalFields
+    }
+    //3DS Info
+    private fun getJetpayHostsThreeDSecureInfo(): JetpayHostsThreeDSecureInfo? {
+        return paymentInfo.jetpayHostsThreeDSecureInfo
+    }
+    private fun setJetpayHostsThreeDSecureInfo(jetpayHostsThreeDSecureInfo: JetpayHostsThreeDSecureInfo?)  {
+        paymentInfo.jetpayHostsThreeDSecureInfo = jetpayHostsThreeDSecureInfo
+    }
+    //Setters for custom payment action type (Auth, Tokenize, Verify)
+    private fun setDMSPayment() {
+        paymentInfo.action = JetpayHostsPaymentInfo.ActionType.Auth
+    }
+    private fun setActionTokenize() {
+        paymentInfo.action = JetpayHostsPaymentInfo.ActionType.Tokenize
+    }
+    private fun setActionVerify() {
+        paymentInfo.action = JetpayHostsPaymentInfo.ActionType.Verify
+    }
+    private fun setAction(action: JetpayHostsPaymentInfo.ActionType) {
+        paymentInfo.action = action
+    }
+
+    private fun setupRecurrentInfo() {
         val recurrentInfo = JetpayHostsRecurrentInfo(
             "R", // type
             "20", // expiry day
@@ -122,7 +253,6 @@ class MainActivity : AppCompatActivity() {
             "12:00:00", // start time
             "12-02-2020", // start date
             "your_recurrent_id") // recurrent payment ID
-
         // Additional options if needed
         recurrentInfo.setAmount(1000)
         recurrentInfo.setSchedule(
@@ -131,39 +261,26 @@ class MainActivity : AppCompatActivity() {
                 JetpayHostsRecurrentInfoSchedule("20-10-2020", 1000)
             )
         )
-
-        paymentInfo.setRecurrent(recurrentInfo)
-    }
-    internal fun getRecurrent(paymentInfo: JetpayHostsPaymentInfo): JetpayHostsRecurrentInfo {
-        return paymentInfo.jetpayHostsRecurrentInfo
+        setRecurrentInfo(recurrentInfo)
     }
 
-    internal fun setKnownAdditionalFields(paymentInfo: JetpayHostsPaymentInfo) {
-        paymentInfo.jetpayHostsAdditionalFields = arrayOf(
-            JetpayHostsAdditionalField(JetpayHostsAdditionalFieldEnums.AdditionalFieldType.customer_first_name, "Mark"),
-            JetpayHostsAdditionalField(JetpayHostsAdditionalFieldEnums.AdditionalFieldType.billing_country, "US"))
+    private fun setupAdditionalFields() {
+        setJetpayHostsAdditionalFields(arrayOf(
+            JetpayHostsAdditionalField(
+                JetpayHostsAdditionalFieldEnums.AdditionalFieldType.customer_first_name, "Mark"),
+            JetpayHostsAdditionalField(
+                JetpayHostsAdditionalFieldEnums.AdditionalFieldType.billing_country, "US")))
     }
 
-    internal fun getKnownAdditionalFields(paymentInfo: JetpayHostsPaymentInfo): Array<JetpayHostsAdditionalField> {
-        return paymentInfo.jetpayHostsAdditionalFields
-    }
-
-    internal fun setScreenDisplayModes(paymentInfo: JetpayHostsPaymentInfo) {
-        paymentInfo.setJetpayHostsScreenDisplayMode(
-            arrayListOf(
-                JetpayHostsScreenDisplayMode.HIDE_DECLINE_FINAL_PAGE,
-                JetpayHostsScreenDisplayMode.HIDE_SUCCESS_FINAL_PAGE
-            ))
-    }
-
-    internal fun addScreenDisplayModes(paymentInfo: JetpayHostsPaymentInfo) {
-        paymentInfo
-            .addJetpayHostsScreenDisplayMode("hide_decline_final_page")
-            .addJetpayHostsScreenDisplayMode("hide_success_final_page")
+    private fun setupScreenDisplayModes() {
+        setJetpayHostsScreenDisplayModes(arrayListOf(
+            JetpayHostsScreenDisplayMode.HIDE_DECLINE_FINAL_PAGE,
+            JetpayHostsScreenDisplayMode.HIDE_SUCCESS_FINAL_PAGE
+        ))
     }
 
     // Setup 3D Secure parameters
-    internal fun setupThreeDSecureParams(paymentInfo: JetpayHostsPaymentInfo) {
+    private fun setupThreeDSecureParams() {
         val threeDSecureInfo = JetpayHostsThreeDSecureInfo()
 
         val threeDSecurePaymentInfo = JetpayHostsThreeDSecurePaymentInfo()
@@ -243,14 +360,10 @@ class MainActivity : AppCompatActivity() {
         threeDSecureInfo.threeDSecureCustomerInfo = threeDSecureCustomerInfo
         threeDSecureInfo.threeDSecurePaymentInfo = threeDSecurePaymentInfo
 
-        paymentInfo.jetpayHostsThreeDSecureInfo = threeDSecureInfo
+        setJetpayHostsThreeDSecureInfo(threeDSecureInfo)
     }
 
-    internal fun getThreeDSecureInfo(paymentInfo: JetpayHostsPaymentInfo): JetpayHostsThreeDSecureInfo {
-        return paymentInfo.jetpayHostsThreeDSecureInfo
-    }
-
-    fun configureGooglePayParams(paymentInfo: JetpayHostsPaymentInfo) {
+    private fun setupGooglePay() {
         paymentInfo.merchantId = "your merchant id"
         paymentInfo.paymentDataRequest = PaymentDataRequest.fromJson(GooglePayJsonParams.getJSON())
     }

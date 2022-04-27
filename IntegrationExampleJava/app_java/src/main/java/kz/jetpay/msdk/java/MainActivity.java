@@ -9,6 +9,10 @@ import android.os.Bundle;
 
 import com.google.android.gms.wallet.PaymentDataRequest;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
 import kz.jetpay.msdk.*;
 import kz.jetpay.msdk.threeDSecure.*;
 
@@ -16,29 +20,51 @@ import kz.jetpay.msdk.threeDSecure.*;
 public class MainActivity extends AppCompatActivity {
 
     private static int PAY_ACTIVITY_REQUEST = 888;
-    private static String SECRET = "test_integration_jetpay_salt";
+    private static String SECRET = "your_secret";
     private static int PROJECT_ID = 123;
+    private static String RANDOM_PAYMENT_ID = "test_integration_jetpay_" + getRandomNumber();
+
+    //STEP 1: Create payment info object with product information
+    private JetpayHostsPaymentInfo paymentInfo = getPaymentInfoOnlyRequiredParams(); // getPaymentInfoAllParams
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Create payment info with product information
-        JetpayHostsPaymentInfo paymentInfo = getPaymentInfoOnlyRequiredParams(); // getPaymentInfoAllParams
+        //STEP 2: Signature should be generated on your server and delivered to your app
+        String signature = SignatureGenerator.generateSignature(getParamsForSigning(), SECRET);
 
-        // Signature should be generated on your server and delivered to your app
-        String signature = SignatureGenerator.generateSignature(paymentInfo.getParamsForSignature(), SECRET);
+        //STEP 3: Sign payment info object
+        setSignature(signature);
 
-        // Sign payment info
-        paymentInfo.setSignature(signature);
+        //STEP 4: Create the intent of SDK
+        Intent SDKIntent = JetpayHostsSDK.buildIntent(this, paymentInfo);
 
-        // Present Checkout UI
-        startActivityForResult(JetpayHostsSDK.buildIntent(
-                this,
-                paymentInfo),
-                PAY_ACTIVITY_REQUEST);
+        //STEP 5: Present Checkout UI
+        startActivityForResult(SDKIntent, PAY_ACTIVITY_REQUEST);
+
+        //Additional STEP (if necessary): add additional fields
+        setupAdditionalFields();
+
+        //Additional STEP (if necessary): add recurrent info
+        setupRecurrentInfo();
+
+        //Additional STEP (if necessary): add 3DS
+        setupThreeDSecureParams();
+
+        //Additional STEP (if necessary): add google pay
+        setupGooglePay();
+
+        //Additional STEP (if necessary): custom behaviour of SDK
+        setupScreenDisplayModes();
+        //Or you can do this like that:
+        //addJetpayHostsScreenDisplayModes();
+    }
+
+    private static String getRandomNumber() {
+        int randomNumber = (new Random().nextInt(9999) + 1000);
+        return Integer.toString(randomNumber);
     }
 
     // Handle SDK result
@@ -72,9 +98,6 @@ public class MainActivity extends AppCompatActivity {
             if (data != null && data.hasExtra(JetpayHostsSDK.DATA_INTENT_EXTRA_TOKEN)) {
                 String token = data.getStringExtra(JetpayHostsSDK.DATA_INTENT_EXTRA_TOKEN);
             }
-            if (data != null && data.hasExtra(JetpayHostsSDK.DATA_INTENT_SESSION_INTERRUPTED)) {
-                String token = data.getStringExtra(JetpayHostsSDK.DATA_INTENT_SESSION_INTERRUPTED);
-            }
         }
     }
 
@@ -82,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
     JetpayHostsPaymentInfo getPaymentInfoOnlyRequiredParams() {
         return new JetpayHostsPaymentInfo(
                 PROJECT_ID, // project ID that is assigned to you
-                "test_integration_jetpay_id", // payment ID to identify payment in your system
+                RANDOM_PAYMENT_ID, // payment ID to identify payment in your system
                 100, // 1.00
                 "USD"
         );
@@ -91,7 +114,7 @@ public class MainActivity extends AppCompatActivity {
     JetpayHostsPaymentInfo getPaymentInfoAllParams() {
         return new JetpayHostsPaymentInfo(
                 PROJECT_ID, // project ID that is assigned to you
-                "test_integration_jetpay_id", // payment ID to identify payment in your system
+                RANDOM_PAYMENT_ID, // payment ID to identify payment in your system
                 100, // 1.00
                 "USD",
                 "T-shirt with dog print",
@@ -100,29 +123,154 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    // Additional
-    void setDMSPayment(JetpayHostsPaymentInfo paymentInfo) {
-        paymentInfo.setAction(JetpayHostsPaymentInfo.ActionType.Auth);
+    //Get params for signing payment (do it only after create paymentInfo object)
+    private String getParamsForSigning()  {
+        return paymentInfo.getParamsForSignature();
     }
 
-    void setActionTokenize(JetpayHostsPaymentInfo paymentInfo) {
-        paymentInfo.setAction(JetpayHostsPaymentInfo.ActionType.Tokenize);
+    //Getters for all params payment info
+    private String getSignature() {
+        return paymentInfo.getSignature();
     }
 
-    void setActionVerify(JetpayHostsPaymentInfo paymentInfo) {
-        paymentInfo.setAction(JetpayHostsPaymentInfo.ActionType.Verify);
+    private Integer getProjectId() {
+        return paymentInfo.getProjectId();
     }
 
-    void setToken(JetpayHostsPaymentInfo paymentInfo) {
+    private String getPaymentId() {
+        return paymentInfo.getPaymentId();
+    }
+
+    private Long getPaymentAmount()  {
+        return paymentInfo.getPaymentAmount();
+    }
+
+    private String getPaymentCurrency() {
+        return paymentInfo.getPaymentCurrency();
+    }
+
+    private String getPaymentDescription() {
+        return paymentInfo.getPaymentDescription();
+    }
+
+    private String getCustomerId() {
+        return paymentInfo.getCustomerId();
+    }
+
+    private String getRegionCode() {
+        return paymentInfo.getRegionCode();
+    }
+
+    private String getLanguageCode() { //Default value is mobile device language
+        return paymentInfo.getLanguageCode();
+    }
+
+    private String getToken() {
+        return paymentInfo.getToken();
+    }
+
+    private String getReceiptData() {
+        return paymentInfo.getReceiptData();
+    }
+
+    private Integer getBankId() {
+        return paymentInfo.getBankId();
+    }
+
+    private Boolean getHideSavedWallets() {
+        return paymentInfo.getHideSavedWallets();
+    }
+
+    private String getForcePaymentMethod() {
+        return paymentInfo.getForcePaymentMethod();
+    }
+
+    private JetpayHostsPaymentInfo.ActionType getAction()  { //Default payment action type is ActionType.Sale
+        return paymentInfo.getAction();
+    }
+
+    //Setters for payment info
+    private void setSignature(String signature) {
+        paymentInfo.setSignature(signature);
+    }
+    //Set the custom language code (see the ISO 639-1 codes list)
+    private void setLanguageCode() {
+        paymentInfo.setLanguageCode("language code");
+    }
+
+    private void setToken() {
         paymentInfo.setToken("token");
     }
 
-    void setReceiptData(JetpayHostsPaymentInfo paymentInfo) {
-        final String RECEIPT_DATA = "receipt data";
-        paymentInfo.setReceiptData(RECEIPT_DATA);
+    private void setReceiptData() {
+        paymentInfo.setReceiptData("receipt data");
     }
 
-    void setRecurrent(JetpayHostsPaymentInfo paymentInfo) {
+    // if you want to hide the saved cards, pass the value - true
+    private void setHideSavedWallets() {
+        paymentInfo.setHideSavedWallets(false);
+    }
+
+    // For forced opening of the payment method, pass its code. Example: qiwi, card ...
+    private void setForcePaymentMethod() {
+        paymentInfo.setForcePaymentMethod("card");
+    }
+
+    private void setBankId() {
+        paymentInfo.setBankId(123);
+    }
+
+
+    //Additional getters and setters
+    //RecurrentInfo
+    private JetpayHostsRecurrentInfo getJetpayHostsRecurrentInfo() {
+        return paymentInfo.getJetpayHostsRecurrentInfo();
+    }
+    private void setRecurrentInfo(JetpayHostsRecurrentInfo recurrentInfo) {
+        paymentInfo.setRecurrent(recurrentInfo);
+    }
+    //Screen Display Mode
+    private List<JetpayHostsScreenDisplayMode> getScreenDisplayModes() {
+        return paymentInfo.getJetpayHostsScreenDisplayModes();
+    }
+    private void setJetpayHostsScreenDisplayModes(List<JetpayHostsScreenDisplayMode> jetpayHostsScreenDisplayModes) {
+        paymentInfo.setJetpayHostsScreenDisplayMode(jetpayHostsScreenDisplayModes);
+    }
+    //Alternative variant of setter
+    private void addJetpayHostsScreenDisplayModes() {
+        paymentInfo
+                .addJetpayHostsScreenDisplayMode("hide_decline_final_page")
+                .addJetpayHostsScreenDisplayMode("hide_success_final_page");
+    }
+    //AdditionalFields
+    private JetpayHostsAdditionalField[] getJetpayHostsAdditionalFields()  {
+        return paymentInfo.getJetpayHostsAdditionalFields();
+    }
+    private void setJetpayHostsAdditionalFields(JetpayHostsAdditionalField[] jetpayHostsAdditionalFields) {
+        paymentInfo.setJetpayHostsAdditionalFields(jetpayHostsAdditionalFields);
+    }
+    //3DS Info
+    private JetpayHostsThreeDSecureInfo getJetpayHostsThreeDSecureInfo() {
+        return paymentInfo.getJetpayHostsThreeDSecureInfo();
+    }
+    private void setJetpayHostsThreeDSecureInfo(JetpayHostsThreeDSecureInfo jetpayHostsThreeDSecureInfo)  {
+        paymentInfo.setJetpayHostsThreeDSecureInfo(jetpayHostsThreeDSecureInfo);
+    }
+    //Setters for custom payment action type (Auth, Tokenize, Verify)
+    private void setDMSPayment() {
+        paymentInfo.setAction(JetpayHostsPaymentInfo.ActionType.Auth);
+    }
+    private void setActionTokenize() {
+        paymentInfo.setAction(JetpayHostsPaymentInfo.ActionType.Tokenize);
+    }
+    private void setActionVerify() {
+        paymentInfo.setAction(JetpayHostsPaymentInfo.ActionType.Verify);
+    }
+    private void setAction(JetpayHostsPaymentInfo.ActionType action) {
+        paymentInfo.setAction(action);
+    }
+
+    private void setupRecurrentInfo() {
         JetpayHostsRecurrentInfo recurrentInfo = new JetpayHostsRecurrentInfo(
                 "R", // type
                 "20", // expiry day
@@ -132,36 +280,33 @@ public class MainActivity extends AppCompatActivity {
                 "12:00:00", // start time
                 "12-02-2020", // start date
                 "your_recurrent_id"); // recurrent payment ID
-
         // Additional options if needed
         recurrentInfo.setAmount(1000);
-        recurrentInfo.setSchedule(new JetpayHostsRecurrentInfoSchedule[]{
+        JetpayHostsRecurrentInfoSchedule[] jetpayHostsRecurrentInfoSchedules = new JetpayHostsRecurrentInfoSchedule[] {
                 new JetpayHostsRecurrentInfoSchedule("20-10-2020", 1000),
                 new JetpayHostsRecurrentInfoSchedule("20-10-2020", 1000)
-        });
-
-        paymentInfo.setRecurrent(recurrentInfo);
+        };
+        recurrentInfo.setSchedule(jetpayHostsRecurrentInfoSchedules);
+        setRecurrentInfo(recurrentInfo);
     }
 
-    void setKnownAdditionalFields(JetpayHostsPaymentInfo paymentInfo) {
-        paymentInfo.setJetpayHostsAdditionalFields(new JetpayHostsAdditionalField[]{
+    private void setupAdditionalFields() {
+        JetpayHostsAdditionalField[] jetpayHostsAdditionalFields = new JetpayHostsAdditionalField[] {
                 new JetpayHostsAdditionalField(JetpayHostsAdditionalFieldEnums.AdditionalFieldType.customer_first_name, "Mark"),
-                new JetpayHostsAdditionalField(JetpayHostsAdditionalFieldEnums.AdditionalFieldType.billing_country, "US"),
-        });
+                new JetpayHostsAdditionalField(JetpayHostsAdditionalFieldEnums.AdditionalFieldType.billing_country, "US")
+        };
+        setJetpayHostsAdditionalFields(jetpayHostsAdditionalFields);
     }
 
-    // if you want to hide the saved cards, pass the value - true
-    void setHideSavedWallets(JetpayHostsPaymentInfo paymentInfo) {
-        paymentInfo.setHideSavedWallets(false);
+    private void setupScreenDisplayModes() {
+        ArrayList<JetpayHostsScreenDisplayMode> jetpayHostsScreenDisplayModes = new ArrayList<>();
+        jetpayHostsScreenDisplayModes.add(JetpayHostsScreenDisplayMode.HIDE_SUCCESS_FINAL_PAGE);
+        jetpayHostsScreenDisplayModes.add(JetpayHostsScreenDisplayMode.HIDE_DECLINE_FINAL_PAGE);
+        setJetpayHostsScreenDisplayModes(jetpayHostsScreenDisplayModes);
     }
 
-    // For forced opening of the payment method, pass its code. Example: qiwi, card ...
-    void setForcePaymentMethod(JetpayHostsPaymentInfo paymentInfo) {
-        paymentInfo.setForcePaymentMethod("card");
-    }
-
-    // Setup 3D Secure 2.0 parameters
-    void setThreeDSecureParams(JetpayHostsPaymentInfo paymentInfo) {
+    // Setup 3D Secure parameters
+    private void setupThreeDSecureParams() {
         JetpayHostsThreeDSecureInfo threeDSecureInfo = new JetpayHostsThreeDSecureInfo();
 
         JetpayHostsThreeDSecurePaymentInfo threeDSecurePaymentInfo = new JetpayHostsThreeDSecurePaymentInfo();
@@ -180,7 +325,7 @@ public class MainActivity extends AppCompatActivity {
                 .setCurrency("USD") // Currency of payment with prepaid or gift card in the ISO 4217 alpha-3 format
                 .setCount(1); // Total number of individual prepaid or gift cards/codes used in purchase.
 
-        threeDSecurePaymentInfo.setGiftCard(threeDSecureGiftCardInfo);
+        threeDSecurePaymentInfo.setGiftCard(threeDSecureGiftCardInfo); // object with information about payment with prepaid card or gift card.
 
         JetpayHostsThreeDSecureCustomerInfo threeDSecureCustomerInfo = new JetpayHostsThreeDSecureCustomerInfo();
         threeDSecureCustomerInfo
@@ -189,7 +334,7 @@ public class MainActivity extends AppCompatActivity {
                 .setWorkPhone("73141211111") // Customer work phone number.
                 .setBillingRegionCode("ABC"); // State, province, or region code in the ISO 3166-2 format. Example: SPE for Saint Petersburg, Russia.
 
-        JetpayHostsThreeDSecureAccountInfo threeDSecureAccountInfo = new JetpayHostsThreeDSecureAccountInfo();
+        JetpayHostsThreeDSecureAccountInfo threeDSecureAccountInfo = new JetpayHostsThreeDSecureAccountInfo(); // object with account information on record with merchant
 
         threeDSecureAccountInfo
                 .setActivityDay(22) // Number of card payment attempts in the last 24 hours.
@@ -210,7 +355,7 @@ public class MainActivity extends AppCompatActivity {
                 .setPaymentAge("01-10-2019") // Card record creation date.
                 .setPaymentAgeIndicator("01"); //  Number of days since the payment card details were saved in a customer account.
 
-        JetpayHostsThreeDSecureShippingInfo threeDSecureShippingInfo = new JetpayHostsThreeDSecureShippingInfo();
+        JetpayHostsThreeDSecureShippingInfo threeDSecureShippingInfo = new JetpayHostsThreeDSecureShippingInfo(); // object that contains shipment details
 
         threeDSecureShippingInfo
                 .setType("01") //Shipment indicator.
@@ -225,7 +370,7 @@ public class MainActivity extends AppCompatActivity {
                 .setRegionCode("MOW") // State, province, or region code in the ISO 3166-2 format.
                 .setNameIndicator("01"); // Shipment recipient flag.
 
-        JetpayHostsThreeDSecureMpiResultInfo threeDSecureMpiResultInfo = new JetpayHostsThreeDSecureMpiResultInfo();
+        JetpayHostsThreeDSecureMpiResultInfo threeDSecureMpiResultInfo = new JetpayHostsThreeDSecureMpiResultInfo(); // object that contains information about previous customer authentication
 
         threeDSecureMpiResultInfo
                 .setAcsOperationId("321412-324-sda23-2341-adf12341234") // The ID the issuer assigned to the previous customer operation and returned in the acs_operation_id parameter inside the callback with payment processing result. Maximum 30 characters.
@@ -233,18 +378,18 @@ public class MainActivity extends AppCompatActivity {
                 .setAuthenticationTimestamp("21323412321324"); // Date and time of the previous successful customer authentication as returned in the mpi_timestamp parameter inside the callback message with payment processing result.
 
         threeDSecureCustomerInfo
-                .setAccountInfo(threeDSecureAccountInfo)
-                .setMpiResultInfo(threeDSecureMpiResultInfo)
-                .setShippingInfo(threeDSecureShippingInfo);
+                .setAccountInfo(threeDSecureAccountInfo) // object with account information on record with merchant
+                .setMpiResultInfo(threeDSecureMpiResultInfo) // object that contains information about previous customer authentication
+                .setShippingInfo(threeDSecureShippingInfo); // object that contains shipment details
 
 
         threeDSecureInfo.setThreeDSecureCustomerInfo(threeDSecureCustomerInfo);
         threeDSecureInfo.setThreeDSecurePaymentInfo(threeDSecurePaymentInfo);
 
-        paymentInfo.setJetpayHostsThreeDSecureInfo(threeDSecureInfo);
+        setJetpayHostsThreeDSecureInfo(threeDSecureInfo);
     }
 
-    void configureGooglePayParams(JetpayHostsPaymentInfo paymentInfo) {
+    private void setupGooglePay() {
         paymentInfo.setMerchantId("your merchant id");
         paymentInfo.setPaymentDataRequest(PaymentDataRequest.fromJson(GooglePayJsonParams.ExampleJSON));
     }
