@@ -203,23 +203,6 @@ If some of the dependencies are already added in the dependencies {} section, do
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 ```
-## Importing libraries via MavenCentral
-The SDK for Android libraries can be imported via MavenCentral. To import the libraries via MavenCentral, you need to do the following:
-1. Open your application module (`build.gradle`);
-2. In the `repositories {}` section, specify the `mavenCentral` repository:
-```
-allprojects {
-    repositories {
-        google()
-        jcenter()
-        mavenCentral()
-    }
-}
-```
-3. In the `dependencies {}` section, add the following dependencies:
-```
-implementation "kz.jetpay:msdk:1.14.1"
-```
 ****
 # Opening payment form
 This section contains samples of payment form invocation code in Java and Kotlin.
